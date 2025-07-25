@@ -1,0 +1,160 @@
+import React, { useRef, useState } from 'react';
+
+const ImageSmoothingApp = () => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [grayscaleFirst, setGrayscaleFirst] = useState(false);
+  const [kernelSize, setKernelSize] = useState(3);
+  const [pixelInfo, setPixelInfo] = useState({ r: 0, g: 0, b: 0, x: 0, y: 0 });
+
+  const originalCanvasRef = useRef(null);
+  const smoothedCanvasRef = useRef(null);
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+
+    img.onload = () => {
+      const canvas = originalCanvasRef.current;
+      const ctx = canvas.getContext('2d');
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      ctx.drawImage(img, 0, 0);
+      setImageLoaded(true);
+    };
+  };
+
+  const handleMouseMove = (e) => {
+    const canvas = originalCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const rect = canvas.getBoundingClientRect();
+
+    const x = Math.floor((e.clientX - rect.left) * (canvas.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (canvas.height / rect.height));
+
+    if (x >= 0 && y >= 0 && x < canvas.width && y < canvas.height) {
+      const pixel = ctx.getImageData(x, y, 1, 1).data;
+      setPixelInfo({ r: pixel[0], g: pixel[1], b: pixel[2], x, y });
+    }
+  };
+
+  const applySmoothing = () => {
+    const canvas = originalCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const smoothedCanvas = smoothedCanvasRef.current;
+    const smoothedCtx = smoothedCanvas.getContext('2d');
+
+    let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+    if (grayscaleFirst) {
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        imageData.data[i] = gray;
+        imageData.data[i + 1] = gray;
+        imageData.data[i + 2] = gray;
+      }
+    }
+
+    const smoothed = smoothImage(imageData, kernelSize);
+
+    smoothedCanvas.width = canvas.width;
+    smoothedCanvas.height = canvas.height;
+    smoothedCtx.putImageData(smoothed, 0, 0);
+  };
+
+  const smoothImage = (imageData, kernelSize) => {
+    const { width, height, data } = imageData;
+    const output = new ImageData(width, height);
+    const half = Math.floor(kernelSize / 2);
+
+    const getIndex = (x, y) => (y * width + x) * 4;
+
+    for (let y = half; y < height - half; y++) {
+      for (let x = half; x < width - half; x++) {
+        let r = 0, g = 0, b = 0, count = 0;
+
+        for (let dy = -half; dy <= half; dy++) {
+          for (let dx = -half; dx <= half; dx++) {
+            const idx = getIndex(x + dx, y + dy);
+            r += data[idx];
+            g += data[idx + 1];
+            b += data[idx + 2];
+            count++;
+          }
+        }
+
+        const i = getIndex(x, y);
+        output.data[i] = r / count;
+        output.data[i + 1] = g / count;
+        output.data[i + 2] = b / count;
+        output.data[i + 3] = data[i + 3]; // preserve alpha
+      }
+    }
+
+    return output;
+  };
+
+  return (
+    <div style={{ textAlign: 'center', padding: '20px' }}>
+      <h2>🖼 Image Smoothing App (React + Canvas)</h2>
+
+      <input type="file" accept="image/*" onChange={handleImageUpload} />
+
+      <div style={{ margin: '10px' }}>
+        <label>
+          <input
+            type="checkbox"
+            checked={grayscaleFirst}
+            onChange={(e) => setGrayscaleFirst(e.target.checked)}
+          />
+          Convert to Grayscale First
+        </label>
+
+        <label style={{ marginLeft: '20px' }}>
+          Kernel Size:
+          <select
+            value={kernelSize}
+            onChange={(e) => setKernelSize(Number(e.target.value))}
+            style={{ marginLeft: '5px' }}
+          >
+            <option value={3}>3x3</option>
+            <option value={5}>5x5</option>
+          </select>
+        </label>
+      </div>
+
+      {imageLoaded && (
+        <>
+          <button onClick={applySmoothing}>Apply Smoothing</button>
+
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '40px', marginTop: '20px' }}>
+            <div>
+              <h4>Original Image</h4>
+              <canvas
+                ref={originalCanvasRef}
+                onMouseMove={handleMouseMove}
+                style={{ border: '1px solid #ccc' }}
+              />
+              <p>
+                Hovered Pixel → X: {pixelInfo.x}, Y: {pixelInfo.y} | R: {pixelInfo.r}, G:{' '}
+                {pixelInfo.g}, B: {pixelInfo.b}
+              </p>
+            </div>
+
+            <div>
+              <h4>Smoothed Image</h4>
+              <canvas ref={smoothedCanvasRef} style={{ border: '1px solid #ccc' }} />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default ImageSmoothingApp;

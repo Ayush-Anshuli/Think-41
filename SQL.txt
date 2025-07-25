@@ -1,0 +1,17 @@
+
+CREATE TABLE Presets (
+  preset_id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(50),
+  kernel_size INT,
+  grayscale BOOLEAN
+);
+
+
+CREATE TABLE Images (
+  image_id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  image_name VARCHAR(100),
+  preset_id INT,
+  uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (preset_id) REFERENCES Presets(preset_id)
+);
